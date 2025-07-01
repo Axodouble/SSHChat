@@ -1,6 +1,23 @@
-let num = 0;
+import * as crypto from "crypto";
 
-while (num < 1000000) {
-  console.log(num);
-  num += 1;
+const text = "Hello, World!";
+const start = Date.now();
+
+let iteration = 0;
+
+while (true) {
+  const candidate = `${text} (ITERATION: ${iteration})`;
+  const sha256Hash = crypto
+    .createHash("sha256")
+    .update(candidate)
+    .digest("hex");
+  if (sha256Hash.startsWith("00000")) {
+    console.log(`\nFound: ${candidate}`);
+    console.log(`SHA256: ${sha256Hash}`);
+    break;
+  }
+  iteration++;
 }
+
+const elapsed = Date.now() - start;
+console.log(`\nTime taken: ${elapsed}ms`);
