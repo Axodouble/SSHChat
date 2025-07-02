@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	text := "Hello, World!"
+	text := "123abc"
 
 	// Get the starting date and time
 	start := time.Now()
@@ -18,18 +18,14 @@ func main() {
 
 	iteration := 0
 	for {
-		// Print the current iteration, overwriting the previous line
-		// fmt.Printf("\rIteration: %d", iteration)
-
-		candidate := fmt.Sprintf("%s (ITERATION: %d)", text, iteration)
+		candidate := fmt.Sprintf("%s %d", text, iteration)
 		sha256Hash := sha256.Sum256([]byte(candidate))
 		hashStr := fmt.Sprintf("%x", sha256Hash)
-		if hashStr[:5] == "00000" {
+		if hashStr[:6] == "000000" {
 			fmt.Printf("\nFound: %s\n", candidate)
 			fmt.Printf("SHA256: %s\n", hashStr)
 			break
 		}
 		iteration++
 	}
-	return
 }

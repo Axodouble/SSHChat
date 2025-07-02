@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@types/node": "^24.0.8",
+    "@types/node": "^24.0.10",
     "crypto": "^1.0.1"
   }
 }
