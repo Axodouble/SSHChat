@@ -14,20 +14,13 @@ type SSHServer struct {
 	config   *ssh.ServerConfig
 	listener net.Listener
 	port     string
+	broker   *MessageBroker
 }
 
 // NewSSHServer creates a new SSH server with the given configuration
 func NewSSHServer(port string, hostKey ssh.Signer) (*SSHServer, error) {
 	config := &ssh.ServerConfig{
-		// Allow any user to connect (you can add authentication here)
 		NoClientAuth: true,
-		// Or use password authentication:
-		// PasswordCallback: func(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
-		//     if c.User() == "user" && string(pass) == "password" {
-		//         return nil, nil
-		//     }
-		//     return nil, fmt.Errorf("password rejected for %q", c.User())
-		// },
 	}
 	config.AddHostKey(hostKey)
 
@@ -36,10 +29,17 @@ func NewSSHServer(port string, hostKey ssh.Signer) (*SSHServer, error) {
 		return nil, err
 	}
 
+	// Initialize message broker
+	broker := NewMessageBroker()
+
+	// Set up the global chat broker
+	chat.GlobalChatBroker = NewBrokerAdapter(broker)
+
 	return &SSHServer{
 		config:   config,
 		listener: listener,
 		port:     port,
+		broker:   broker,
 	}, nil
 }
 
@@ -74,7 +74,8 @@ func (s *SSHServer) handleConnection(conn net.Conn) {
 	}
 	defer sshConn.Close()
 
-	log.Printf("New SSH connection from %s (%s)", sshConn.RemoteAddr(), sshConn.User())
+	username := sshConn.User()
+	log.Printf("New SSH connection from %s (%s)", sshConn.RemoteAddr(), username)
 
 	// Handle global requests
 	go ssh.DiscardRequests(reqs)
@@ -92,12 +93,12 @@ func (s *SSHServer) handleConnection(conn net.Conn) {
 			continue
 		}
 
-		go s.handleSession(channel, requests)
+		go s.handleSession(channel, requests, username)
 	}
 }
 
 // handleSession processes SSH session requests
-func (s *SSHServer) handleSession(channel ssh.Channel, requests <-chan *ssh.Request) {
+func (s *SSHServer) handleSession(channel ssh.Channel, requests <-chan *ssh.Request, username string) {
 	defer channel.Close()
 
 	// Handle session requests
@@ -105,8 +106,8 @@ func (s *SSHServer) handleSession(channel ssh.Channel, requests <-chan *ssh.Requ
 		switch req.Type {
 		case "shell", "exec":
 			req.Reply(true, nil)
-			// Start the TUI application
-			chat.RunChatTUI(channel)
+			// Start the TUI application with username
+			chat.RunChatTUI(channel, username)
 			return
 		case "pty-req":
 			req.Reply(true, nil)
