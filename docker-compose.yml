@@ -1,0 +1,14 @@
+services:
+  ssh-chat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "2222:2222"
+    volumes:
+      - ./.cache:/app/.cache
+    environment:
+      - SSH_CHAT_PORT=2222
+    command: ["/app/app"]
+    networks:
+      - chat-network

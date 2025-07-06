@@ -1,17 +1,61 @@
-all: build-all
+# SSH Chat Server Makefile
 
+.PHONY: all build run clean test help
+
+# Default target
+all: build
+
+# Build the application
 build:
-	go build -o ./bin/main-native
+	@echo "Building SSH Chat Server..."
+	go build -o bin/ssh-chat-server .
 
+# Build for different platforms
 build-linux:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./bin/main-linux
+	@echo "Building for Linux..."
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/ssh-chat-server-linux .
 
 build-windows:
-	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o ./bin/main-windows.exe
+	@echo "Building for Windows..."
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o bin/ssh-chat-server-windows.exe .
 
-build-webassembly:
-	CGO_ENABLED=0 GOOS=js GOARCH=wasm go build -o ./bin/main.wasm
+build-mac:
+	@echo "Building for macOS..."
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o bin/ssh-chat-server-mac .
 
-build-all: build-linux build-windows build-webassembly
+# Build for all platforms
+build-all: build-linux build-windows build-mac
 
-.PHONY: all build build-linux build-windows build-webassembly build-all
+# Run the application
+run:
+	@echo "Starting SSH Chat Server..."
+	go run .
+
+# Clean build artifacts
+clean:
+	@echo "Cleaning build artifacts..."
+	rm -f ssh-chat-server
+	rm -rf bin/
+	rm -f ssh_host_key
+
+# Run tests
+test:
+	@echo "Running tests..."
+	go test ./...
+
+# Update dependencies
+deps:
+	@echo "Updating dependencies..."
+	go mod tidy
+	go mod download
+
+# Display help
+help:
+	@echo "Available targets:"
+	@echo "  build       - Build the application"
+	@echo "  run         - Run the application"
+	@echo "  clean       - Clean build artifacts"
+	@echo "  test        - Run tests"
+	@echo "  deps        - Update dependencies"
+	@echo "  build-all   - Build for all platforms"
+	@echo "  help        - Show this help message"
