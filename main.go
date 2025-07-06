@@ -3,10 +3,13 @@ package main
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"os"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -14,9 +17,9 @@ import (
 
 func main() {
 	// Generate or load SSH host key
-	hostKey, err := generateHostKey()
+	hostKey, err := loadOrGenerateHostKey("ssh_host_key")
 	if err != nil {
-		log.Fatal("Failed to generate host key:", err)
+		log.Fatal("Failed to load or generate host key:", err)
 	}
 
 	// Configure SSH server
@@ -55,17 +58,66 @@ func main() {
 	}
 }
 
-func generateHostKey() (ssh.Signer, error) {
-	// Generate RSA key
+func loadOrGenerateHostKey(filename string) (ssh.Signer, error) {
+	// Try to load existing key
+	if _, err := os.Stat(filename); err == nil {
+		log.Printf("Loading existing host key from %s", filename)
+		keyBytes, err := os.ReadFile(filename)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read host key file: %v", err)
+		}
+
+		block, _ := pem.Decode(keyBytes)
+		if block == nil {
+			return nil, fmt.Errorf("failed to decode PEM block from host key file")
+		}
+
+		privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse private key: %v", err)
+		}
+
+		signer, err := ssh.NewSignerFromKey(privateKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create signer from key: %v", err)
+		}
+
+		return signer, nil
+	}
+
+	// Generate new key if file doesn't exist
+	log.Printf("Generating new host key and saving to %s", filename)
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to generate RSA key: %v", err)
+	}
+
+	// Save the key to file
+	keyBytes := x509.MarshalPKCS1PrivateKey(privateKey)
+	pemBlock := &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: keyBytes,
+	}
+
+	keyFile, err := os.Create(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create host key file: %v", err)
+	}
+	defer keyFile.Close()
+
+	// Set restrictive permissions (readable only by owner)
+	if err := keyFile.Chmod(0600); err != nil {
+		return nil, fmt.Errorf("failed to set key file permissions: %v", err)
+	}
+
+	if err := pem.Encode(keyFile, pemBlock); err != nil {
+		return nil, fmt.Errorf("failed to write host key to file: %v", err)
 	}
 
 	// Convert to SSH format
 	signer, err := ssh.NewSignerFromKey(privateKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create signer from key: %v", err)
 	}
 
 	return signer, nil
