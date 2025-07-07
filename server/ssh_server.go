@@ -77,6 +77,13 @@ func (s *SSHServer) handleConnection(conn net.Conn) {
 	username := sshConn.User()
 	log.Printf("New SSH connection from %s (%s)", sshConn.RemoteAddr(), username)
 
+	// Kick users logging in as root or admin (usually bots)
+	if username == "root" || username == "admin" {
+		log.Printf("Rejected connection from %s: root/admin login is not allowed", sshConn.RemoteAddr())
+		conn.Close()
+		return
+	}
+
 	// Handle global requests
 	go ssh.DiscardRequests(reqs)
 
