@@ -101,18 +101,36 @@ func (s *SSHServer) handleConnection(conn net.Conn) {
 func (s *SSHServer) handleSession(channel ssh.Channel, requests <-chan *ssh.Request, username string) {
 	defer channel.Close()
 
+	var tui *chat.ChatTUI
+	tuiStarted := false
+
 	// Handle session requests
 	for req := range requests {
 		switch req.Type {
-		case "shell", "exec":
-			req.Reply(true, nil)
-			// Start the TUI application with username
-			chat.RunChatTUI(channel, username)
-			return
 		case "pty-req":
 			req.Reply(true, nil)
+		case "shell", "exec":
+			req.Reply(true, nil)
+			if !tuiStarted {
+				// Start the TUI application with username in a goroutine
+				tui = chat.NewChatTUI(channel, username)
+				tuiStarted = true
+				go tui.Run()
+			}
+		case "window-change":
+			req.Reply(true, nil)
+			log.Printf("Window resize event received for user: %s", username)
+			// Handle terminal resize
+			if tui != nil && tuiStarted {
+				tui.HandleResize()
+			}
 		default:
 			req.Reply(false, nil)
 		}
+	}
+
+	// Clean up when requests channel closes
+	if tui != nil {
+		tui.Stop()
 	}
 }

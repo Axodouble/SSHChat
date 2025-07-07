@@ -27,6 +27,8 @@ type ChatTUI struct {
 	messages    []ChatMessage
 	headerLines int  // Number of lines used for the header
 	needsRedraw bool // Flag to indicate if full redraw is needed
+	running     bool // Flag to indicate if TUI is running
+	refreshing  bool // Flag to prevent concurrent refreshes
 }
 
 // NewChatTUI creates a new chat TUI instance
@@ -37,6 +39,8 @@ func NewChatTUI(channel ssh.Channel, username string) *ChatTUI {
 		messages:    make([]ChatMessage, 0),
 		headerLines: 4, // Header takes 4 lines: title, username, instructions, blank line
 		needsRedraw: true,
+		running:     false,
+		refreshing:  false,
 	}
 }
 
@@ -48,6 +52,9 @@ func RunChatTUI(channel ssh.Channel, username string) {
 
 // Run starts the chat TUI main loop
 func (c *ChatTUI) Run() {
+	c.running = true
+	defer func() { c.running = false }()
+
 	// Connect to the message broker
 	if GlobalChatBroker == nil {
 		c.channel.Write([]byte("Error: Message broker not available\r\n"))
@@ -70,7 +77,7 @@ func (c *ChatTUI) Run() {
 	buffer := make([]byte, 1024)
 	currentInput := ""
 
-	for {
+	for c.running {
 		n, err := c.channel.Read(buffer)
 		if err != nil {
 			if err == io.EOF {
@@ -140,12 +147,20 @@ func (c *ChatTUI) refresh() {
 
 // fullRefresh performs a complete screen refresh in a resize-safe way
 func (c *ChatTUI) fullRefresh() {
+	// Prevent concurrent refreshes
+	if c.refreshing {
+		return
+	}
+	c.refreshing = true
+	defer func() { c.refreshing = false }()
+
 	// Use the safest possible approach for clearing and redrawing
 	// This sequence works reliably across different terminal types and sizes
 
 	// Reset terminal state and clear screen
 	c.channel.Write([]byte("\033c"))         // Reset terminal
 	c.channel.Write([]byte("\033[2J\033[H")) // Clear screen and go to top
+	c.channel.Write([]byte("\033[?25h"))     // Ensure cursor is visible
 
 	// Draw header
 	c.channel.Write([]byte("=== SSH Chat Server ===\r\n"))
@@ -173,4 +188,27 @@ func (c *ChatTUI) fullRefresh() {
 
 	// Show prompt at the end
 	c.channel.Write([]byte("> "))
+}
+
+// HandleResize handles terminal resize events
+func (c *ChatTUI) HandleResize() {
+	if !c.running {
+		return
+	}
+
+	log.Printf("Handling terminal resize for user: %s", c.username)
+
+	// Add a small delay to ensure the terminal has finished resizing
+	time.Sleep(50 * time.Millisecond)
+
+	// Trigger a full refresh when the terminal is resized
+	// The fullRefresh method has built-in concurrency protection
+	c.fullRefresh()
+
+	log.Printf("Terminal resize handled for user: %s", c.username)
+}
+
+// Stop gracefully stops the TUI
+func (c *ChatTUI) Stop() {
+	c.running = false
 }
