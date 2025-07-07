@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
       no_cache: true
     ports:
-      - "2222:2222"
+      - "22:2222"
     volumes:
       - ./.container:/app/.keystore:rw
     entrypoint: ["/app/app"]
