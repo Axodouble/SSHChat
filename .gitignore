@@ -1,2 +1,4 @@
 bin
 **.private
+.container
+.keystore

@@ -3,12 +3,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      no_cache: true
     ports:
       - "2222:2222"
     volumes:
-      - ./.cache:/app/.cache
-    environment:
-      - SSH_CHAT_PORT=2222
-    command: ["/app/app"]
-    networks:
-      - chat-network
+      - ./.container:/app/.keystore:rw
+    entrypoint: ["/app/app"]
