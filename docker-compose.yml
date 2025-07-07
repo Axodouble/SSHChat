@@ -7,5 +7,9 @@ services:
     ports:
       - "22:2222"
     volumes:
-      - ./.container:/app/.keystore:rw
+      - keystore-data:/app/.keystore
     entrypoint: ["/app/app"]
+
+volumes:
+  keystore-data:
+    driver: local
