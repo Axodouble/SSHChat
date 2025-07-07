@@ -79,7 +79,13 @@ func saveKeyToFile(privateKey *rsa.PrivateKey, filename string) error {
 		Bytes: keyBytes,
 	}
 
+	// Check if the directory exists, create it if not
+	if err := os.MkdirAll(".keystore", 0755); err != nil {
+		return fmt.Errorf("failed to create key directory: %v", err)
+	}
+
 	keyFile, err := os.Create(filename)
+
 	if err != nil {
 		return fmt.Errorf("failed to create host key file: %v", err)
 	}

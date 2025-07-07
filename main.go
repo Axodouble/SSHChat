@@ -9,7 +9,7 @@ import (
 
 func main() {
 	// Generate or load SSH host key
-	hostKey, err := keys.LoadOrGenerateHostKey("sshHostKey.private")
+	hostKey, err := keys.LoadOrGenerateHostKey(".keystore/sshHostKey.private")
 	if err != nil {
 		log.Fatal("Failed to load or generate host key:", err)
 	}

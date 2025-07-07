@@ -113,6 +113,10 @@ func (c *ChatTUI) Run() {
 			case 3: // Ctrl+C
 				c.channel.Write([]byte("\r\nGoodbye!\r\n"))
 				GlobalChatBroker.SendMessage("System", fmt.Sprintf("%s left the chat", c.username))
+				// Ensure we stop cleanly
+				c.running = false
+				// Close the channel to signal the SSH session to end
+				c.channel.Close()
 				return
 			case 12: // Ctrl+L (refresh)
 				c.fullRefresh()
@@ -163,7 +167,7 @@ func (c *ChatTUI) fullRefresh() {
 	c.channel.Write([]byte("\033[?25h"))     // Ensure cursor is visible
 
 	// Draw header
-	c.channel.Write([]byte("=== SSH Chat Server ===\r\n"))
+	c.channel.Write([]byte("=== Axodouble SSH Chat Server ===\r\n"))
 	c.channel.Write([]byte(fmt.Sprintf("Connected as: %s\r\n", c.username)))
 	c.channel.Write([]byte("Type your message and press Enter. Ctrl+C to quit. Ctrl+L to refresh.\r\n\r\n"))
 
@@ -210,5 +214,6 @@ func (c *ChatTUI) HandleResize() {
 
 // Stop gracefully stops the TUI
 func (c *ChatTUI) Stop() {
+	log.Printf("Stopping TUI for user: %s", c.username)
 	c.running = false
 }
