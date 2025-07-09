@@ -1,17 +1,14 @@
 package main
 
 import (
-	"fmt"
-	"io"
 	"log"
+	"math/rand"
 	"net"
 	"os"
-	"os/exec"
 	"sshfun/keys"
-	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/term"
 )
 
 const (
@@ -71,8 +68,6 @@ func handleConnection(conn net.Conn, config *ssh.ServerConfig) {
 	}
 	defer sshConn.Close()
 
-	log.Printf("New SSH connection from %s (user: %s)", sshConn.RemoteAddr(), sshConn.User())
-
 	// Handle global requests
 	go ssh.DiscardRequests(reqs)
 
@@ -99,8 +94,8 @@ func handleChannel(newChannel ssh.NewChannel) {
 	// Handle requests for this channel
 	go handleRequests(requests, channel)
 
-	// Send welcome message
-	fmt.Fprintf(channel, "Welcome to Go SSH Server!\r\n")
+	// Clear screen and reset cursor position (like htop)
+	channel.Write([]byte("\033[2J\033[1;1H\033[?25h"))
 
 	// Simple command loop
 	handleShell(channel)
@@ -125,96 +120,59 @@ func handleRequests(requests <-chan *ssh.Request, channel ssh.Channel) {
 }
 
 func handleShell(channel ssh.Channel) {
-	term := term.NewTerminal(channel, "$ ")
+	// Initialize random seed based on current time
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
+	// Configuration for the tarpit
+	const (
+		minDelay      = 5000  // 5 seconds minimum delay
+		maxDelay      = 15000 // 15 seconds maximum delay
+		minLineLength = 10
+		maxLineLength = 80
+	)
+
+	log.Printf("Starting SSH tarpit session")
+
+	// Keep sending random banner lines indefinitely
 	for {
-		line, err := term.ReadLine()
+		// Generate a random delay between messages (in milliseconds)
+		delayMs := minDelay + rng.Intn(maxDelay-minDelay)
+
+		// Sleep for the delay period
+		time.Sleep(time.Duration(delayMs) * time.Millisecond)
+
+		// Generate a random banner line
+		line := generateRandomBannerLine(rng, minLineLength, maxLineLength)
+
+		// Try to write the line to the channel
+		_, err := channel.Write([]byte(line + "\r\n"))
 		if err != nil {
-			if err == io.EOF {
-				return
-			}
-			log.Printf("Error reading line: %v", err)
+			log.Printf("Client disconnected: %v", err)
 			return
 		}
 
-		// Process the command
-		processCommand(term, strings.TrimSpace(line))
+		log.Printf("Sent tarpit line: %s", line)
 	}
 }
 
-func processCommand(term *term.Terminal, command string) {
-	if command == "" {
-		return
+// generateRandomBannerLine creates a random SSH banner-like line
+func generateRandomBannerLine(rng *rand.Rand, minLen, maxLen int) string {
+	// Random length between min and max
+	length := minLen + rng.Intn(maxLen-minLen)
+
+	// Character set for random lines (printable ASCII excluding some problematic chars)
+	chars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_"
+
+	line := make([]byte, length)
+	for i := 0; i < length; i++ {
+		line[i] = chars[rng.Intn(len(chars))]
 	}
 
-	parts := strings.Fields(command)
-	cmd := parts[0]
-
-	switch cmd {
-	case "exit", "quit":
-		term.Write([]byte("Goodbye!\r\n"))
-		return
-	case "help":
-		showHelp(term)
-	case "whoami":
-		term.Write([]byte("You are connected to Go SSH Server\r\n"))
-	case "date":
-		executeSystemCommand(term, "date")
-	case "pwd":
-		executeSystemCommand(term, "pwd")
-	case "ls":
-		args := []string{"ls", "-la"}
-		if len(parts) > 1 {
-			args = append(args, parts[1:]...)
-		}
-		executeSystemCommandWithArgs(term, args)
-	case "echo":
-		if len(parts) > 1 {
-			output := strings.Join(parts[1:], " ")
-			term.Write([]byte(output + "\r\n"))
-		}
-	case "uptime":
-		executeSystemCommand(term, "uptime")
-	default:
-		// Try to execute as system command
-		executeSystemCommandWithArgs(term, parts)
-	}
-}
-
-func showHelp(term *term.Terminal) {
-	help := `Available commands:
-  help     - Show this help message
-  whoami   - Show current user info
-  date     - Show current date and time
-  pwd      - Show current directory
-  ls       - List directory contents
-  echo     - Echo text
-  uptime   - Show system uptime
-  exit     - Disconnect from server
-
-You can also try other system commands.
-`
-	term.Write([]byte(help))
-}
-
-func executeSystemCommand(term *term.Terminal, command string) {
-	executeSystemCommandWithArgs(term, []string{command})
-}
-
-func executeSystemCommandWithArgs(term *term.Terminal, args []string) {
-	if len(args) == 0 {
-		return
+	// Make sure it doesn't start with "SSH-" as that would be a valid SSH banner
+	result := string(line)
+	if len(result) >= 4 && result[:4] == "SSH-" {
+		result = "XXX-" + result[4:]
 	}
 
-	cmd := exec.Command(args[0], args[1:]...)
-	output, err := cmd.CombinedOutput()
-
-	if err != nil {
-		term.Write([]byte(fmt.Sprintf("Error: %v\r\n", err)))
-		return
-	}
-
-	// Convert \n to \r\n for proper terminal display
-	output = []byte(strings.ReplaceAll(string(output), "\n", "\r\n"))
-	term.Write(output)
+	return result
 }
