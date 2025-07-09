@@ -1,4 +1,4 @@
-module ssh-chat-server
+module sshfun
 
 go 1.23.0
 
