@@ -35,15 +35,15 @@ func main() {
 	// Configure the SSH server
 	config := &ssh.ServerConfig{
 		NoClientAuth: false,
-		PasswordCallback: func(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
-			// Simple password authentication
-			if c.User() == defaultUsername && string(pass) == defaultPassword {
-				log.Printf("User %s authenticated successfully", c.User())
-				return nil, nil
-			}
-			log.Printf("Authentication failed for user %s", c.User())
-			return nil, fmt.Errorf("password rejected for %q", c.User())
-		},
+		// PasswordCallback: func(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
+		// 	// Simple password authentication
+		// 	if c.User() == defaultUsername && string(pass) == defaultPassword {
+		// 		log.Printf("User %s authenticated successfully", c.User())
+		// 		return nil, nil
+		// 	}
+		// 	log.Printf("Authentication failed for user %s", c.User())
+		// 	return nil, fmt.Errorf("password rejected for %q", c.User())
+		// },
 	}
 
 	// Add the host key to the server config
@@ -62,7 +62,6 @@ func main() {
 	defer listener.Close()
 
 	log.Printf("SSH server listening on port %s", port)
-	log.Printf("Default credentials: %s:%s", defaultUsername, defaultPassword)
 
 	// Accept connections
 	for {
