@@ -9,19 +9,13 @@ import (
 	"os/exec"
 	"sshfun/keys"
 	"strings"
-	"syscall"
-	"unsafe"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
 )
 
 const (
-	// Default SSH port
 	defaultPort = "2222"
-	// Default credentials for demo purposes
-	defaultUsername = "admin"
-	defaultPassword = "password123"
 )
 
 func main() {
@@ -33,16 +27,7 @@ func main() {
 
 	// Configure the SSH server
 	config := &ssh.ServerConfig{
-		NoClientAuth: false,
-		// PasswordCallback: func(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
-		// 	// Simple password authentication
-		// 	if c.User() == defaultUsername && string(pass) == defaultPassword {
-		// 		log.Printf("User %s authenticated successfully", c.User())
-		// 		return nil, nil
-		// 	}
-		// 	log.Printf("Authentication failed for user %s", c.User())
-		// 	return nil, fmt.Errorf("password rejected for %q", c.User())
-		// },
+		NoClientAuth: true,
 	}
 
 	// Add the host key to the server config
@@ -116,7 +101,6 @@ func handleChannel(newChannel ssh.NewChannel) {
 
 	// Send welcome message
 	fmt.Fprintf(channel, "Welcome to Go SSH Server!\r\n")
-	fmt.Fprintf(channel, "Type 'help' for available commands or 'exit' to quit.\r\n")
 
 	// Simple command loop
 	handleShell(channel)
@@ -233,18 +217,4 @@ func executeSystemCommandWithArgs(term *term.Terminal, args []string) {
 	// Convert \n to \r\n for proper terminal display
 	output = []byte(strings.ReplaceAll(string(output), "\n", "\r\n"))
 	term.Write(output)
-}
-
-// setWinsize sets the window size for the terminal
-func setWinsize(fd uintptr, w, h uint32) {
-	ws := struct {
-		Row    uint16
-		Col    uint16
-		Xpixel uint16
-		Ypixel uint16
-	}{
-		Row: uint16(h),
-		Col: uint16(w),
-	}
-	syscall.Syscall(syscall.SYS_IOCTL, fd, uintptr(syscall.TIOCSWINSZ), uintptr(unsafe.Pointer(&ws)))
 }
