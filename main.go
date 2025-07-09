@@ -1,14 +1,13 @@
 package main
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
 	"os/exec"
+	"sshfun/keys"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -27,7 +26,7 @@ const (
 
 func main() {
 	// Generate a private key for the SSH server
-	privateKey, err := generateHostKey()
+	privateKey, err := keys.LoadOrGenerateHostKey(".keystore/sshHostKey.private")
 	if err != nil {
 		log.Fatal("Failed to generate private key: ", err)
 	}
@@ -74,22 +73,6 @@ func main() {
 		// Handle each connection in a goroutine
 		go handleConnection(conn, config)
 	}
-}
-
-func generateHostKey() (ssh.Signer, error) {
-	// Generate RSA private key
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create SSH signer from the private key
-	signer, err := ssh.NewSignerFromKey(privateKey)
-	if err != nil {
-		return nil, err
-	}
-
-	return signer, nil
 }
 
 func handleConnection(conn net.Conn, config *ssh.ServerConfig) {
