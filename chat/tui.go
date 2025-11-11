@@ -95,13 +95,14 @@ func (c *ChatTUI) Run() {
 			switch b {
 			case '\r', '\n': // Enter key
 				if currentInput != "" {
+					// Limit input to 200 characters
+					if len(currentInput) > 200 {
+						currentInput = currentInput[:200]
+					}
 					// Send message to broker
 					GlobalChatBroker.SendMessage(c.username, currentInput)
 					currentInput = ""
 					// Just move to new line and show prompt, let the message handler refresh
-					c.channel.Write([]byte("\r\n> "))
-				} else {
-					// Just show prompt again
 					c.channel.Write([]byte("\r\n> "))
 				}
 			case 127, 8: // Backspace
@@ -167,7 +168,7 @@ func (c *ChatTUI) fullRefresh() {
 	c.channel.Write([]byte("\033[?25h"))     // Ensure cursor is visible
 
 	// Draw header
-	c.channel.Write([]byte("=== Axodouble SSH Chat Server ===\r\n"))
+	c.channel.Write([]byte("=== cer.sh chat ===\r\n"))
 	c.channel.Write([]byte(fmt.Sprintf("Connected as: %s\r\n", c.username)))
 	c.channel.Write([]byte("Type your message and press Enter. Ctrl+C to quit. Ctrl+L to refresh.\r\n\r\n"))
 
@@ -199,21 +200,14 @@ func (c *ChatTUI) HandleResize() {
 	if !c.running {
 		return
 	}
-
-	log.Printf("Handling terminal resize for user: %s", c.username)
-
 	// Add a small delay to ensure the terminal has finished resizing
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	// Trigger a full refresh when the terminal is resized
-	// The fullRefresh method has built-in concurrency protection
 	c.fullRefresh()
-
-	log.Printf("Terminal resize handled for user: %s", c.username)
 }
 
 // Stop gracefully stops the TUI
 func (c *ChatTUI) Stop() {
-	log.Printf("Stopping TUI for user: %s", c.username)
 	c.running = false
 }
