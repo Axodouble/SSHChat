@@ -9,25 +9,14 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// We'll define our own Message type here to avoid circular imports
-// This should match the server.Message type
-
-// Message represents a chat message (kept for backward compatibility)
-type Message struct {
-	Sender    string
-	Content   string
-	Timestamp time.Time
-}
-
 // ChatTUI manages the terminal user interface for the chat
 type ChatTUI struct {
 	channel      ssh.Channel
 	username     string
 	client       *ChatClient
 	currentInput string
+	lastSent     time.Time
 	messages     []ChatMessage
-	headerLines  int  // Number of lines used for the header
-	needsRedraw  bool // Flag to indicate if full redraw is needed
 	running      bool // Flag to indicate if TUI is running
 	refreshing   bool // Flag to prevent concurrent refreshes
 }
@@ -35,13 +24,12 @@ type ChatTUI struct {
 // NewChatTUI creates a new chat TUI instance
 func NewChatTUI(channel ssh.Channel, username string) *ChatTUI {
 	return &ChatTUI{
-		channel:     channel,
-		username:    username,
-		messages:    make([]ChatMessage, 0),
-		headerLines: 4, // Header takes 4 lines: title, username, instructions, blank line
-		needsRedraw: true,
-		running:     false,
-		refreshing:  false,
+		channel:    channel,
+		username:   username,
+		messages:   make([]ChatMessage, 0),
+		lastSent:   time.Now(),
+		running:    false,
+		refreshing: false,
 	}
 }
 
@@ -95,6 +83,9 @@ func (c *ChatTUI) Run() {
 		for _, b := range data {
 			switch b {
 			case '\r', '\n': // Enter key
+				if time.Since(c.lastSent) < 5000*time.Millisecond {
+					continue
+				}
 				if c.currentInput != "" {
 					// Limit input to 200 characters
 					if len(c.currentInput) > 200 {
@@ -102,6 +93,7 @@ func (c *ChatTUI) Run() {
 					}
 					// Send message to broker
 					GlobalChatBroker.SendMessage(c.username, c.currentInput)
+					c.lastSent = time.Now()
 					c.currentInput = ""
 					// Just move to new line and show prompt, let the message handler refresh
 					c.channel.Write([]byte("\r\n> "))
