@@ -1,6 +1,8 @@
 package server
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"log"
 	"net"
 
@@ -43,6 +45,17 @@ func NewSSHServer(port string, hostKey ssh.Signer) (*SSHServer, error) {
 	}, nil
 }
 
+// generateIPHash creates a hash of the IP address and returns first 2 and last 2 characters
+func generateIPHash(ipAddr string) string {
+	hash := sha256.Sum256([]byte(ipAddr))
+	hashStr := fmt.Sprintf("%x", hash)
+	// Return first 2 and last 2 characters
+	if len(hashStr) >= 4 {
+		return hashStr[:2] + hashStr[len(hashStr)-2:]
+	}
+	return hashStr
+}
+
 // Start begins listening for SSH connections
 func (s *SSHServer) Start() error {
 	defer s.listener.Close()
@@ -74,12 +87,26 @@ func (s *SSHServer) handleConnection(conn net.Conn) {
 	}
 	defer sshConn.Close()
 
-	username := sshConn.User()
-	log.Printf("New SSH connection from %s (%s)", sshConn.RemoteAddr(), username)
+	// Get the base username and remote IP
+	baseUsername := sshConn.User()
+	remoteIP := conn.RemoteAddr().String()
+
+	// Extract just the IP address (remove port if present)
+	if host, _, err := net.SplitHostPort(remoteIP); err == nil {
+		remoteIP = host
+	}
+
+	// Generate hash suffix from IP
+	ipHashSuffix := generateIPHash(remoteIP)
+
+	// Append hash to username
+	username := fmt.Sprintf("%s [%s]", baseUsername, ipHashSuffix)
+
+	log.Printf("New SSH connection from %s (%s -> %s)", remoteIP, baseUsername, username)
 
 	// Kick users logging in as root or admin (usually bots)
-	if username == "root" || username == "admin" {
-		log.Printf("Rejected connection from %s: root/admin login is not allowed", sshConn.RemoteAddr())
+	if baseUsername == "root" || baseUsername == "admin" {
+		log.Printf("Rejected connection from %s: root/admin login is not allowed", remoteIP)
 		conn.Close()
 		return
 	}
