@@ -96,6 +96,10 @@ func (mb *MessageBroker) SendMessage(sender, content string) {
 	}
 
 	mb.nextID++
+	if len(mb.messages) >= 20 {
+		// Keep only the last 20 messages
+		mb.messages = mb.messages[1:]
+	}
 	mb.messages = append(mb.messages, message)
 
 	// Send to distribution channel

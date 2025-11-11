@@ -21,14 +21,15 @@ type Message struct {
 
 // ChatTUI manages the terminal user interface for the chat
 type ChatTUI struct {
-	channel     ssh.Channel
-	username    string
-	client      *ChatClient
-	messages    []ChatMessage
-	headerLines int  // Number of lines used for the header
-	needsRedraw bool // Flag to indicate if full redraw is needed
-	running     bool // Flag to indicate if TUI is running
-	refreshing  bool // Flag to prevent concurrent refreshes
+	channel      ssh.Channel
+	username     string
+	client       *ChatClient
+	currentInput string
+	messages     []ChatMessage
+	headerLines  int  // Number of lines used for the header
+	needsRedraw  bool // Flag to indicate if full redraw is needed
+	running      bool // Flag to indicate if TUI is running
+	refreshing   bool // Flag to prevent concurrent refreshes
 }
 
 // NewChatTUI creates a new chat TUI instance
@@ -75,7 +76,7 @@ func (c *ChatTUI) Run() {
 
 	// Read input from SSH channel
 	buffer := make([]byte, 1024)
-	currentInput := ""
+	c.currentInput = ""
 
 	for c.running {
 		n, err := c.channel.Read(buffer)
@@ -94,22 +95,21 @@ func (c *ChatTUI) Run() {
 		for _, b := range data {
 			switch b {
 			case '\r', '\n': // Enter key
-				if currentInput != "" {
+				if c.currentInput != "" {
 					// Limit input to 200 characters
-					if len(currentInput) > 200 {
-						currentInput = currentInput[:200]
+					if len(c.currentInput) > 200 {
+						c.currentInput = c.currentInput[:200]
 					}
 					// Send message to broker
-					GlobalChatBroker.SendMessage(c.username, currentInput)
-					currentInput = ""
+					GlobalChatBroker.SendMessage(c.username, c.currentInput)
+					c.currentInput = ""
 					// Just move to new line and show prompt, let the message handler refresh
 					c.channel.Write([]byte("\r\n> "))
 				}
 			case 127, 8: // Backspace
-				if len(currentInput) > 0 {
-					currentInput = currentInput[:len(currentInput)-1]
-					// Clear current line and redraw prompt with current input
-					c.channel.Write([]byte("\r> " + currentInput + " \b"))
+				if len(c.currentInput) > 0 {
+					c.currentInput = c.currentInput[:len(c.currentInput)-1]
+					c.refresh()
 				}
 			case 3: // Ctrl+C
 				c.channel.Write([]byte("\r\nGoodbye!\r\n"))
@@ -121,13 +121,15 @@ func (c *ChatTUI) Run() {
 				return
 			case 12: // Ctrl+L (refresh)
 				c.fullRefresh()
-				if currentInput != "" {
-					c.channel.Write([]byte(currentInput))
+				if c.currentInput != "" {
+					c.channel.Write([]byte(c.currentInput))
 				}
 			default:
 				if b >= 32 && b <= 126 { // Printable characters
-					currentInput += string(b)
-					c.channel.Write([]byte(string(b)))
+					if len(c.currentInput) < 200 {
+						c.currentInput += string(b)
+						c.channel.Write([]byte(string(b)))
+					}
 				}
 			}
 		}
@@ -139,7 +141,7 @@ func (c *ChatTUI) handleIncomingMessages() {
 	for message := range c.client.Channel {
 		c.messages = append(c.messages, message)
 		// Add a small delay to prevent excessive refreshing during rapid message bursts
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(5 * time.Millisecond)
 		c.refresh()
 	}
 }
@@ -148,6 +150,7 @@ func (c *ChatTUI) handleIncomingMessages() {
 func (c *ChatTUI) refresh() {
 	// Simply do a full refresh - it's more reliable than trying to preserve positioning
 	c.fullRefresh()
+	c.channel.Write([]byte(c.currentInput))
 }
 
 // fullRefresh performs a complete screen refresh in a resize-safe way
@@ -172,11 +175,11 @@ func (c *ChatTUI) fullRefresh() {
 	c.channel.Write([]byte(fmt.Sprintf("Connected as: %s\r\n", c.username)))
 	c.channel.Write([]byte("Type your message and press Enter. Ctrl+C to quit. Ctrl+L to refresh.\r\n\r\n"))
 
-	// Display messages (limit to last 10 to prevent screen overflow)
+	// Display messages (limit to last 50 to prevent screen overflow)
 	messageCount := len(c.messages)
 	startIdx := 0
-	if messageCount > 10 {
-		startIdx = messageCount - 10
+	if messageCount > 20 {
+		startIdx = messageCount - 20
 	}
 
 	for i := startIdx; i < messageCount; i++ {
