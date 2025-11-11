@@ -172,11 +172,11 @@ func (c *ChatTUI) fullRefresh() {
 	c.channel.Write([]byte(fmt.Sprintf("Connected as: %s\r\n", c.username)))
 	c.channel.Write([]byte("Type your message and press Enter. Ctrl+C to quit. Ctrl+L to refresh.\r\n\r\n"))
 
-	// Display messages (limit to last 50 to prevent screen overflow)
+	// Display messages (limit to last 10 to prevent screen overflow)
 	messageCount := len(c.messages)
 	startIdx := 0
-	if messageCount > 50 {
-		startIdx = messageCount - 50
+	if messageCount > 10 {
+		startIdx = messageCount - 10
 	}
 
 	for i := startIdx; i < messageCount; i++ {
