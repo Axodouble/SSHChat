@@ -6,6 +6,7 @@ services:
       no_cache: true
     ports:
       - "22:2222"
+    restart: unless-stopped
     volumes:
       - keystore-data:/app/.keystore
     entrypoint: ["/app/app"]
