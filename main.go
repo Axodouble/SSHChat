@@ -15,7 +15,7 @@ func main() {
 	}
 
 	// Create and start SSH server
-	sshServer, err := server.NewSSHServer("2222", hostKey)
+	sshServer, err := server.NewSSHServer("1234", hostKey)
 	if err != nil {
 		log.Fatal("Failed to create SSH server:", err)
 	}

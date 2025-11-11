@@ -153,10 +153,9 @@ func (s *SSHServer) handleSession(channel ssh.Channel, requests <-chan *ssh.Requ
 			}
 		case "window-change":
 			req.Reply(true, nil)
-			log.Printf("Window resize event received for user: %s", username)
 			// Handle terminal resize
 			if tui != nil && tuiStarted {
-				tui.HandleResize()
+				tui.HandleResize(int(req.Payload[3]), int(req.Payload[7]))
 			}
 		default:
 			req.Reply(false, nil)

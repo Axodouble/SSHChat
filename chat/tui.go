@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -11,14 +12,19 @@ import (
 
 // ChatTUI manages the terminal user interface for the chat
 type ChatTUI struct {
-	channel      ssh.Channel
-	username     string
-	client       *ChatClient
-	currentInput string
-	lastSent     time.Time
-	messages     []ChatMessage
-	running      bool // Flag to indicate if TUI is running
-	refreshing   bool // Flag to prevent concurrent refreshes
+	channel      ssh.Channel   // SSH channel for communication
+	username     string        // Username of the connected client
+	client       *ChatClient   // Associated chat client
+	currentInput string        // Current user input
+	lastSent     time.Time     // Timestamp of last sent message
+	messages     []ChatMessage // Stored chat messages
+	running      bool          // Flag to indicate if TUI is running
+	refreshing   bool          // Flag to prevent concurrent refreshes
+	Resizing     bool          // Flag to indicate if a resize is in progress
+	width        int           // Terminal width
+	height       int           // Terminal height
+	resizeTimer  *time.Timer   // Timer for resize debounce
+	resizeMu     sync.Mutex    // Mutex for resize operations
 }
 
 // NewChatTUI creates a new chat TUI instance
@@ -30,6 +36,9 @@ func NewChatTUI(channel ssh.Channel, username string) *ChatTUI {
 		lastSent:   time.Now(),
 		running:    false,
 		refreshing: false,
+		Resizing:   false,
+		width:      0,
+		height:     0,
 	}
 }
 
@@ -59,8 +68,8 @@ func (c *ChatTUI) Run() {
 	// Start goroutine to handle incoming messages from broker
 	go c.handleIncomingMessages()
 
-	// Initial setup: full screen refresh
-	c.fullRefresh()
+	// Initial setup: screen refresh
+	c.refresh()
 
 	// Read input from SSH channel
 	buffer := make([]byte, 1024)
@@ -101,7 +110,7 @@ func (c *ChatTUI) Run() {
 			case 127, 8: // Backspace
 				if len(c.currentInput) > 0 {
 					c.currentInput = c.currentInput[:len(c.currentInput)-1]
-					c.refresh()
+					c.fullRefresh()
 				}
 			case 3: // Ctrl+C
 				c.channel.Write([]byte("\r\nGoodbye!\r\n"))
@@ -112,7 +121,7 @@ func (c *ChatTUI) Run() {
 				c.channel.Close()
 				return
 			case 12: // Ctrl+L (refresh)
-				c.fullRefresh()
+				c.refresh()
 				if c.currentInput != "" {
 					c.channel.Write([]byte(c.currentInput))
 				}
@@ -134,19 +143,18 @@ func (c *ChatTUI) handleIncomingMessages() {
 		c.messages = append(c.messages, message)
 		// Add a small delay to prevent excessive refreshing during rapid message bursts
 		time.Sleep(5 * time.Millisecond)
-		c.refresh()
+		c.fullRefresh()
 	}
 }
 
-// refresh redraws the screen in a resize-safe way
-func (c *ChatTUI) refresh() {
-	// Simply do a full refresh - it's more reliable than trying to preserve positioning
-	c.fullRefresh()
+// fullRefresh redraws the screen in a resize-safe way
+func (c *ChatTUI) fullRefresh() {
+	c.refresh()
 	c.channel.Write([]byte(c.currentInput))
 }
 
-// fullRefresh performs a complete screen refresh in a resize-safe way
-func (c *ChatTUI) fullRefresh() {
+// refresh performs a complete screen refresh in a resize-safe way
+func (c *ChatTUI) refresh() {
 	// Prevent concurrent refreshes
 	if c.refreshing {
 		return
@@ -191,15 +199,28 @@ func (c *ChatTUI) fullRefresh() {
 }
 
 // HandleResize handles terminal resize events
-func (c *ChatTUI) HandleResize() {
+func (c *ChatTUI) HandleResize(width int, height int) {
+	log.Printf("Handling resize to %dx%d", width, height)
 	if !c.running {
 		return
 	}
-	// Add a small delay to ensure the terminal has finished resizing
-	time.Sleep(500 * time.Millisecond)
 
-	// Trigger a full refresh when the terminal is resized
-	c.fullRefresh()
+	c.resizeMu.Lock()
+	defer c.resizeMu.Unlock()
+
+	// Update dimensions
+	c.width = width
+	c.height = height
+
+	// Cancel existing timer if any
+	if c.resizeTimer != nil {
+		c.resizeTimer.Stop()
+	}
+
+	// Set a new timer to trigger refresh after resize activity settles
+	c.resizeTimer = time.AfterFunc(200*time.Millisecond, func() {
+		c.fullRefresh()
+	})
 }
 
 // Stop gracefully stops the TUI
