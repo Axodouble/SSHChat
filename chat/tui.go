@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"sort"
 	"sync"
 	"time"
 
@@ -171,9 +172,18 @@ func (c *ChatTUI) refresh() {
 	c.channel.Write([]byte("\033[?25h"))     // Ensure cursor is visible
 
 	// Draw header
-	c.channel.Write([]byte("=== cer.sh chat ===\r\n"))
-	c.channel.Write([]byte(fmt.Sprintf("Connected as: %s\r\n", c.username)))
-	c.channel.Write([]byte("Type your message and press Enter. Ctrl+C to quit. Ctrl+L to refresh.\r\n\r\n"))
+	c.channel.Write([]byte(fmt.Sprintf("===== %s@cer.sh chat =====\r\n", c.username)))
+	c.channel.Write([]byte("Online users: "))
+	usernames := GlobalChatBroker.ListUsernames()
+	sort.Strings(usernames)
+	for i, user := range usernames {
+		if i > 0 {
+			c.channel.Write([]byte(", "))
+		}
+		c.channel.Write([]byte(user))
+	}
+	c.channel.Write([]byte("\r\n"))
+	c.channel.Write([]byte("Type your message and press Enter, (5 second cooldown). Ctrl+C to quit. Ctrl+L to refresh.\r\n\r\n"))
 
 	// Display messages (limit to last 50 to prevent screen overflow)
 	messageCount := len(c.messages)

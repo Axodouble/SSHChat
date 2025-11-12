@@ -52,3 +52,8 @@ func (ba *BrokerAdapter) RemoveClient(username string) {
 func (ba *BrokerAdapter) SendMessage(sender, content string) {
 	ba.broker.SendMessage(sender, content)
 }
+
+// ListUsernames implements chat.Broker interface
+func (ba *BrokerAdapter) ListUsernames() []string {
+	return ba.broker.ListUsernames()
+}

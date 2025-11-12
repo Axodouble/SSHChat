@@ -135,3 +135,15 @@ func (mb *MessageBroker) GetAllMessages() []Message {
 	copy(result, mb.messages)
 	return result
 }
+
+// ListUsernames returns a list of all connected usernames
+func (mb *MessageBroker) ListUsernames() []string {
+	mb.mu.RLock()
+	defer mb.mu.RUnlock()
+
+	usernames := make([]string, 0, len(mb.clients))
+	for username := range mb.clients {
+		usernames = append(usernames, username)
+	}
+	return usernames
+}

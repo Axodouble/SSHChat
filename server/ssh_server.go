@@ -127,7 +127,9 @@ func (s *SSHServer) handleConnection(conn net.Conn) {
 			continue
 		}
 
-		go s.handleSession(channel, requests, username)
+		go func() {
+			s.handleSession(channel, requests, username)
+		}()
 	}
 }
 

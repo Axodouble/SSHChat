@@ -22,6 +22,7 @@ type Broker interface {
 	AddClient(username string) *ChatClient
 	RemoveClient(username string)
 	SendMessage(sender, content string)
+	ListUsernames() []string
 }
 
 // Global broker instance will be set by the server
